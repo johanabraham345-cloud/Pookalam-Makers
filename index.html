@@ -1,14 +1,253 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pookalam Slicer</title>
-    <meta name="description" content="Sketch to spiral G-code for a flower-dropping robot, powered by Gemini." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12100e">
+<title>Pookalam Studio — sketch to G-code</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="dot d4"></span>
+    <h1>Pookalam Studio</h1>
+  </div>
+  <nav class="steps" id="steps">
+    <button class="step" data-step="1"><b>1</b><span>Capture</span></button>
+    <button class="step" data-step="2"><b>2</b><span>Vectorise</span></button>
+    <button class="step" data-step="3"><b>3</b><span>Colour</span></button>
+    <button class="step" data-step="4"><b>4</b><span>Dots</span></button>
+    <button class="step" data-step="5"><b>5</b><span>G-code</span></button>
+  </nav>
+</header>
+
+<main>
+
+<section class="panel" data-panel="1">
+  <div class="stage">
+    <div class="dropzone" id="dropzone">
+      <canvas id="srcCanvas"></canvas>
+      <div class="dz-hint" id="dzHint">
+        <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="4"/>
+        </svg>
+        <p><b>Photograph your sketch</b></p>
+        <p class="sub">Draw on white paper with a dark pen. Fill the frame, shoot straight down, avoid shadows.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="controls">
+    <h2>Load a sketch</h2>
+    <div class="btnrow">
+      <label class="btn primary">
+        Take photo
+        <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+      </label>
+      <label class="btn">
+        Choose image
+        <input type="file" id="fileLib" accept="image/*" hidden>
+      </label>
+    </div>
+    <button class="btn ghost wide" id="btnDemo">Use a demo sketch</button>
+
+    <h2>Crop to the pookalam</h2>
+    <p class="hint">Drag the circle over your design. Everything inside becomes the pookalam; the edge of the circle is the outer rim.</p>
+    <div class="field">
+      <label>Circle size <output id="cropROut">70%</output></label>
+      <input type="range" id="cropR" min="15" max="100" value="70">
+    </div>
+    <button class="btn ghost wide" id="btnAutoCrop">Auto-detect</button>
+
+    <div class="spacer"></div>
+    <button class="btn primary wide" id="toStep2" disabled>Vectorise &rarr;</button>
+  </aside>
+</section>
+
+<section class="panel" data-panel="2">
+  <div class="stage">
+    <div class="viewwrap" id="vecWrap">
+      <canvas id="vecCanvas"></canvas>
+    </div>
+    <div class="stagebar">
+      <div class="segmented" id="vecView">
+        <button data-v="clean" class="on">Clean</button>
+        <button data-v="ink">Ink mask</button>
+        <button data-v="skel">Skeleton</button>
+        <button data-v="over">Overlay</button>
+      </div>
+      <span class="stat" id="vecStat">&mdash;</span>
+    </div>
+  </div>
+  <aside class="controls">
+    <h2>Ink detection</h2>
+    <div class="field">
+      <label>Sensitivity <output id="thrOut">0.15</output></label>
+      <input type="range" id="thr" min="2" max="45" value="15">
+    </div>
+    <div class="field">
+      <label>Despeckle <output id="specOut">6</output></label>
+      <input type="range" id="spec" min="0" max="40" value="6">
+    </div>
+    <div class="field">
+      <label>Close gaps <output id="closeOut">1</output></label>
+      <input type="range" id="closeR" min="0" max="4" value="1">
+    </div>
+
+    <h2>CAD clean-up</h2>
+    <div class="field">
+      <label>Symmetry folds <output id="foldOut">auto</output></label>
+      <input type="range" id="folds" min="0" max="24" value="0">
+      <p class="hint" id="foldGuess"></p>
+    </div>
+    <label class="check"><input type="checkbox" id="optSnap" checked> Snap to polar grid</label>
+    <label class="check"><input type="checkbox" id="optSym" checked> Enforce rotational symmetry</label>
+    <label class="check"><input type="checkbox" id="optMirror"> Mirror each sector</label>
+    <div class="field">
+      <label>Line tolerance <output id="tolOut">1.6</output></label>
+      <input type="range" id="tol" min="5" max="40" value="16">
+    </div>
+    <div class="field">
+      <label>Stroke width <output id="swOut">4</output></label>
+      <input type="range" id="sw" min="1" max="14" value="4">
+    </div>
+
+    <div class="btnrow">
+      <button class="btn ghost" id="btnReVec">Re-run</button>
+      <button class="btn ghost" id="btnSvg">Export SVG</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn primary wide" id="toStep3">Fill colours &rarr;</button>
+  </aside>
+</section>
+
+<section class="panel" data-panel="3">
+  <div class="stage">
+    <div class="viewwrap" id="paintWrap">
+      <canvas id="paintCanvas"></canvas>
+    </div>
+    <div class="stagebar">
+      <div class="segmented" id="toolbar">
+        <button data-tool="fill" class="on">Fill</button>
+        <button data-tool="pick">Pick</button>
+        <button data-tool="erase">Erase</button>
+        <button data-tool="pan">Pan</button>
+      </div>
+      <span class="stat" id="paintStat">tap a region to fill</span>
+    </div>
+  </div>
+  <aside class="controls">
+    <h2>Flower palette</h2>
+    <p class="hint">Four containers on the turret. Tap a swatch to select it, tap its colour chip to change it.</p>
+    <div class="palette" id="palette"></div>
+
+    <h2>Background</h2>
+    <div class="field inline">
+      <label>Unfilled areas</label>
+      <input type="color" id="bgColor" value="#faf6ee">
+    </div>
+    <label class="check"><input type="checkbox" id="optOutline" checked> Lay outlines with the selected colour (<span id="outlineNum">1</span>)</label>
+
+    <div class="btnrow">
+      <button class="btn ghost" id="btnUndo">Undo</button>
+      <button class="btn ghost" id="btnClearFills">Clear all</button>
+    </div>
+    <button class="btn ghost wide" id="btnAutoColor">Auto-colour rings</button>
+
+    <div class="spacer"></div>
+    <button class="btn primary wide" id="toStep4">Make dots &rarr;</button>
+  </aside>
+</section>
+
+<section class="panel" data-panel="4">
+  <div class="stage">
+    <div class="viewwrap" id="dotWrap">
+      <canvas id="dotCanvas"></canvas>
+    </div>
+    <div class="stagebar">
+      <div class="segmented" id="dotView">
+        <button data-d="dots" class="on">Dots</button>
+        <button data-d="path">Path</button>
+        <button data-d="both">Both</button>
+      </div>
+      <span class="stat" id="dotStat">&mdash;</span>
+    </div>
+  </div>
+  <aside class="controls">
+    <h2>Physical size</h2>
+    <div class="field inline">
+      <label>Diameter (mm)</label>
+      <input type="number" id="diaMM" value="900" min="100" max="4000" step="10">
+    </div>
+
+    <h2>Slicer</h2>
+    <div class="segmented full" id="pathMode">
+      <button data-p="spiral" class="on">Spiral</button>
+      <button data-p="rings">Rings</button>
+    </div>
+    <div class="field">
+      <label>Dot spacing <output id="dsOut">12 mm</output></label>
+      <input type="range" id="ds" min="4" max="40" value="12">
+    </div>
+    <div class="field">
+      <label>Track pitch <output id="ppOut">12 mm</output></label>
+      <input type="range" id="pp" min="4" max="40" value="12">
+    </div>
+    <div class="field">
+      <label>Dot size <output id="dotSzOut">70%</output></label>
+      <input type="range" id="dotSz" min="20" max="120" value="70">
+    </div>
+    <label class="check"><input type="checkbox" id="optSkipBg" checked> Skip background (no flowers there)</label>
+
+    <button class="btn ghost wide" id="btnSlice">Re-slice</button>
+    <div class="legend" id="legend"></div>
+
+    <div class="spacer"></div>
+    <button class="btn primary wide" id="toStep5">Generate G-code &rarr;</button>
+  </aside>
+</section>
+
+<section class="panel" data-panel="5">
+  <div class="stage code">
+    <pre id="gcode"></pre>
+  </div>
+  <aside class="controls">
+    <h2>Machine</h2>
+    <div class="field inline"><label>Feed (mm/min)</label><input type="number" id="feed" value="900" min="50" step="50"></div>
+    <div class="field inline"><label>Gate dwell (s)</label><input type="number" id="dwell" value="0.15" min="0.02" step="0.01"></div>
+    <div class="field inline"><label>Turret dwell (s)</label><input type="number" id="tdwell" value="0.6" min="0" step="0.1"></div>
+    <label class="check"><input type="checkbox" id="optComments" checked> Include comments</label>
+    <label class="check"><input type="checkbox" id="optArcAsG1" checked> Emit moves as G1 (with feed)</label>
+
+    <h2>Summary</h2>
+    <div class="summary" id="summary"></div>
+
+    <div class="btnrow">
+      <button class="btn ghost" id="btnCopy">Copy</button>
+      <button class="btn ghost" id="btnDlNc">.nc</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn ghost" id="btnDlCsv">.csv</button>
+      <button class="btn ghost" id="btnDlJson">.json</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn primary wide" id="btnRegen">Regenerate</button>
+  </aside>
+</section>
+
+</main>
+
+<div class="busy" id="busy"><div class="spin"></div><span id="busyMsg">working&hellip;</span></div>
+
+<script src="js/util.js"></script>
+<script src="js/imaging.js"></script>
+<script src="js/trace.js"></script>
+<script src="js/fitting.js"></script>
+<script src="js/vectorize.js"></script>
+<script src="js/paint.js"></script>
+<script src="js/slicer.js"></script>
+<script src="js/gcode.js"></script>
+<script src="js/app.js"></script>
+</body>
 </html>
